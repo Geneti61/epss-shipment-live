@@ -1,8 +1,7 @@
 # ============================================================
 # EPSS Shipment Live - Authentication
-# Reads from EPSS_Shipment_Data.xlsx
-# Drivers sheet: DriverName + Password
-# Managers sheet: Email + Password
+# Drivers log in with PLATE NUMBER
+# Managers log in with EMAIL
 # ============================================================
 
 import streamlit as st
@@ -13,9 +12,6 @@ import os
 EXCEL_FILE = "EPSS_Shipment_Data.xlsx"
 
 
-# ============================================================
-# LOAD ALL USERS (Drivers + Managers)
-# ============================================================
 @st.cache_data
 def load_users():
     if not os.path.exists(EXCEL_FILE):
@@ -24,29 +20,26 @@ def load_users():
 
     users = {}
 
-    # --- Drivers ---
+    # --- Drivers: key = PlateNumber ---
     try:
         df = pd.read_excel(EXCEL_FILE, sheet_name="Drivers")
         for _, row in df.iterrows():
             name = str(row.get("DriverName", "")).strip()
+            plate = str(row.get("PlateNumber", "")).strip()
             pwd = str(row.get("Password", "")).strip()
-            if name and name != "nan" and pwd and pwd != "nan":
-                # Use first name as username (lowercase, no spaces)
-                username = name.split()[0].lower()
-                # If duplicate, add plate number
-                if username in users:
-                    plate = str(row.get("PlateNumber", "")).strip()
-                    username = f"{username}{plate}".lower()
-                users[username] = {
+            if (name and name != "nan"
+                and plate and plate != "nan"
+                and pwd and pwd != "nan"):
+                users[plate] = {
                     "password": pwd,
                     "full_name": name,
                     "role": "Driver",
-                    "plate": str(row.get("PlateNumber", "")).strip(),
+                    "plate": plate,
                 }
     except Exception as e:
         st.warning(f"Could not load Drivers: {e}")
 
-    # --- Managers ---
+    # --- Managers: key = email ---
     try:
         df = pd.read_excel(EXCEL_FILE, sheet_name="Managers")
         for _, row in df.iterrows():
@@ -81,16 +74,18 @@ def init_session():
         st.session_state.user_plate = None
 
 
-def login(username, password):
-    key = username.strip().lower()
-    if key in USERS:
-        if USERS[key]["password"] == password:
-            st.session_state.logged_in = True
-            st.session_state.user_id = key
-            st.session_state.user_name = USERS[key]["full_name"]
-            st.session_state.user_role = USERS[key]["role"]
-            st.session_state.user_plate = USERS[key]["plate"]
-            return True
+def login(identifier, password):
+    key = identifier.strip()
+    # Try exact match first, then lowercase for emails
+    for k in USERS.keys():
+        if k.lower() == key.lower():
+            if USERS[k]["password"] == password:
+                st.session_state.logged_in = True
+                st.session_state.user_id = k
+                st.session_state.user_name = USERS[k]["full_name"]
+                st.session_state.user_role = USERS[k]["role"]
+                st.session_state.user_plate = USERS[k]["plate"]
+                return True
     return False
 
 
@@ -126,13 +121,29 @@ def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.subheader("Login")
-        username = st.text_input("Username (or Email for Managers)")
+
+        # Role toggle
+        role_choice = st.radio(
+            "I am a:",
+            ["🚚 Driver", "👔 Manager"],
+            horizontal=True,
+        )
+
+        if role_choice == "🚚 Driver":
+            identifier = st.text_input("Plate Number", placeholder="e.g. 4-23525")
+            st.caption("Drivers: Enter your plate number and password.")
+        else:
+            identifier = st.text_input("Email", placeholder="e.g. name@epss.gov.et")
+            st.caption("Managers: Enter your email and password.")
+
         password = st.text_input("Password", type="password")
 
         if st.button("Login", use_container_width=True, type="primary"):
-            if login(username, password):
+            if login(identifier, password):
                 st.rerun()
             else:
-                st.error("Invalid username or password.")
+                st.error("Invalid credentials. Please check and try again.")
 
-        st.caption("Drivers: use your first name. Password: **Epss@2026**")
+        st.divider()
+        st.caption("**Driver:** Plate Number + `Epss@2026`")
+        st.caption("**Manager:** Email + `Epss@2019`")
