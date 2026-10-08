@@ -37,7 +37,7 @@ for s in shipments:
     status_groups.setdefault(status, []).append(s)
 
 # ============================================================
-# SNAPSHOT CARDS
+# SNAPSHOT CARDS — with time + duration
 # ============================================================
 st.subheader("📸 Snapshot")
 
@@ -47,16 +47,48 @@ statuses_order = [
     "Return Started", "Returned / Arrived"
 ]
 
+# Statuses considered "active" for warning if >2 hours
+ACTIVE_STATUSES = [
+    "Loading Started", "Trip Started", "Arrived Hub",
+    "Unloading Started", "Return Started"
+]
+
 cols = st.columns(3)
 for i, status in enumerate(statuses_order):
     col = cols[i % 3]
     with col:
         group = status_groups.get(status, [])
-        if group:
-            with st.container(border=True):
-                st.markdown(f"**{status} ({len(group)})**")
+        with st.container(border=True):
+            st.markdown(f"**{status} ({len(group)})**")
+            if group:
+                # Find the event key for this status
+                status_event_key = None
+                for ev in EVENTS:
+                    if ev["en"] == status:
+                        status_event_key = ev["key"]
+                        break
+
                 for s in group:
+                    ts = s.get("events", {}).get(status_event_key, "") if status_event_key else ""
                     st.write(f"• {s['driver']} ({s['hub']})")
+                    if ts:
+                        try:
+                            dt = datetime.strptime(ts, "%Y-%m-%d %H:%M")
+                            diff = datetime.now() - dt
+                            total_min = int(diff.total_seconds() / 60)
+                            if total_min < 60:
+                                dur = f"{total_min} min ago"
+                            else:
+                                hrs = total_min // 60
+                                mins = total_min % 60
+                                dur = f"{hrs}h {mins}m ago"
+
+                            warn = " ⚠️" if status in ACTIVE_STATUSES and total_min > 120 else ""
+                            st.caption(f"   🕐 {ts}  |  {dur}{warn}")
+                        except Exception:
+                            st.caption(f"   🕐 {ts}")
+            else:
+                st.caption("_No shipments_")
 
 st.divider()
 
