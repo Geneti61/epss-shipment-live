@@ -12,8 +12,8 @@ import os
 EXCEL_FILE = "EPSS_Shipment_Data.xlsx"
 
 
-@st.cache_data
 def load_users():
+    """Read the Excel file fresh every time."""
     if not os.path.exists(EXCEL_FILE):
         st.error(f"Missing {EXCEL_FILE} — upload it to the repo root.")
         return {}
@@ -27,6 +27,7 @@ def load_users():
             name = str(row.get("DriverName", "")).strip()
             plate = str(row.get("PlateNumber", "")).strip()
             pwd = str(row.get("Password", "")).strip()
+            
             if (name and name != "nan"
                 and plate and plate != "nan"
                 and pwd and pwd != "nan"):
@@ -46,6 +47,7 @@ def load_users():
             email = str(row.get("Email", "")).strip().lower()
             pwd = str(row.get("Password", "")).strip()
             name = str(row.get("Name", "")).strip()
+            
             if email and email != "nan" and pwd and pwd != "nan":
                 users[email] = {
                     "password": pwd,
@@ -57,9 +59,6 @@ def load_users():
         st.warning(f"Could not load Managers: {e}")
 
     return users
-
-
-USERS = load_users()
 
 
 # ============================================================
@@ -75,16 +74,21 @@ def init_session():
 
 
 def login(identifier, password):
-    key = identifier.strip()
-    # Try exact match first, then lowercase for emails
-    for k in USERS.keys():
-        if k.lower() == key.lower():
-            if USERS[k]["password"] == password:
+    # Clean up input (remove spaces, make emails lowercase)
+    key = identifier.strip().lower()
+    pw_clean = password.strip()
+    
+    # Load users fresh
+    current_users = load_users()
+
+    for k, user_data in current_users.items():
+        if k.strip().lower() == key:
+            if user_data["password"].strip() == pw_clean:
                 st.session_state.logged_in = True
                 st.session_state.user_id = k
-                st.session_state.user_name = USERS[k]["full_name"]
-                st.session_state.user_role = USERS[k]["role"]
-                st.session_state.user_plate = USERS[k]["plate"]
+                st.session_state.user_name = user_data["full_name"]
+                st.session_state.user_role = user_data["role"]
+                st.session_state.user_plate = user_data["plate"]
                 return True
     return False
 
