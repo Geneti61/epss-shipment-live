@@ -43,28 +43,42 @@ active = my_shipments[0] if my_shipments else None
 if not active:
     st.subheader("🆕 Start New Shipment")
 
-    hub = st.selectbox("Destination Hub", HUBS)
-    warehouse = st.selectbox("Warehouse", WAREHOUSES)
+    # --- Warehouse Selection ---
+    wh_choice = st.selectbox("Warehouse", WAREHOUSES + ["Other..."])
+    if wh_choice == "Other...":
+        warehouse = st.text_input("Please specify the Warehouse", placeholder="e.g. Special Warehouse")
+    else:
+        warehouse = wh_choice
+
+    # --- Hub Selection ---
+    hub_choice = st.selectbox("Destination Hub", HUBS + ["Other..."])
+    if hub_choice == "Other...":
+        hub = st.text_input("Please specify the Hub", placeholder="e.g. Arbaminch Special Zone")
+    else:
+        hub = hub_choice
 
     if st.button("🚀 Start Shipment", type="primary", use_container_width=True):
-        shipment_id = f"SHP-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        new_shipment = {
-            "shipment_id": shipment_id,
-            "driver": user["name"],
-            "plate": user.get("plate", ""),
-            "hub": hub,
-            "warehouse": warehouse,
-            "events": {
-                "assigned": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            },
-            "status": "Assigned",
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        }
-        st.session_state.shipments.append(new_shipment)
-        save_shipments(st.session_state.shipments)
-        append_log("Shipment Started", user["id"], shipment_id)
-        st.success(f"✅ Shipment {shipment_id} started!")
-        st.rerun()
+        if not warehouse or not hub:
+            st.error("Please specify both Warehouse and Hub.")
+        else:
+            shipment_id = f"SHP-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            new_shipment = {
+                "shipment_id": shipment_id,
+                "driver": user["name"],
+                "plate": user.get("plate", ""),
+                "hub": hub,
+                "warehouse": warehouse,
+                "events": {
+                    "assigned": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                },
+                "status": "Assigned",
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            }
+            st.session_state.shipments.append(new_shipment)
+            save_shipments(st.session_state.shipments)
+            append_log("Shipment Started", user["id"], shipment_id)
+            st.success(f"✅ Shipment {shipment_id} started!")
+            st.rerun()
 
     st.stop()
 
